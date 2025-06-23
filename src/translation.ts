@@ -68,7 +68,7 @@ async function translateByOpenAIChinese(question: string, text: string, env: Env
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: '你是一個資料整理大師，將透過 AI RAG 取得的資料，再依照原本問題整理出最適合原本問題的答案，並且翻譯成中文。' },
-        { role: 'user', content: `請整理資訊：「${text}」，原本問題：「${question}」` },
+        { role: 'user', content: `請整理資訊：「${text}」，原本問題：「${question}」。請以中文回覆。` },
       ],
       temperature: 0.5,
       max_tokens: 2048,
