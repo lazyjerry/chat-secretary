@@ -51,24 +51,7 @@ export async function logAction(
     user = { id: lastInsertId }
   }
 
-  // 2. 計算 OpenAI token 數
-  const openAITokenCount = estimateOpenAITokens(data.translatedQuestion + (data.ragAnswer ?? '') + data.translatedAnswer)
-
-  // 3. 讀取 OpenAI 計費設定
-  const openAIConfigStr = await getConfigValue(env, 'openai_pricing')
-
-  const openAIConfig = openAIConfigStr ? JSON.parse(openAIConfigStr) : {
-    freeQuota: 0,
-    pricePerThousandTokens: 0.03,
-  }
-
-  // 4. 計算 OpenAI 費用
-  const billableOpenAITokens = Math.max(0, openAITokenCount - openAIConfig.freeQuota)
-  const openAICost = (billableOpenAITokens / 1000) * openAIConfig.pricePerThousandTokens
-
-  const totalCost = openAICost
-
-  // 5. 插入 actions 紀錄
+  // 2. 插入 actions 紀錄
   const actionSql = `
     INSERT INTO actions
       (user_id, original_question, translated_question, rag_response, translated_response, intent, asked_at, responded_at)
@@ -88,8 +71,29 @@ export async function logAction(
     )
     .run()
 
-  // 6. 更新全域 statistics 統計（依 month 聚合）
-  const month = new Date(data.questionTime).toISOString().slice(0, 7)
+  console.log('[logAction] Action record inserted for user id:', user.id)
+
+  // 3. 計算 OpenAI token
+  const openAITokenCount = estimateOpenAITokens(data.translatedQuestion + (data.ragAnswer ?? '') + data.translatedAnswer)
+
+  // 4. 更新統計
+  await updateStatistics(env, openAITokenCount, data.questionTime)
+}
+
+export async function updateStatistics(env: Env, openAITokenCount: number, questionTime: string): Promise<void> {
+  const openAIConfigStr = await getConfigValue(env, 'openai_pricing')
+
+  const openAIConfig = openAIConfigStr ? JSON.parse(openAIConfigStr) : {
+    freeQuota: 0,
+    pricePerThousandTokens: 0.03,
+  }
+
+  const billableOpenAITokens = Math.max(0, openAITokenCount - openAIConfig.freeQuota)
+  const openAICost = (billableOpenAITokens / 1000) * openAIConfig.pricePerThousandTokens
+
+  const totalCost = openAICost
+
+  const month = new Date(questionTime).toISOString().slice(0, 7)
   const now = new Date().toISOString()
 
   const statsSql = `
@@ -101,10 +105,11 @@ export async function logAction(
       total_openai_tokens = total_openai_tokens + excluded.total_openai_tokens,
       updated_at = excluded.updated_at
   `
+
   await env.CHAT_SECRETARY_DB
     .prepare(statsSql)
     .bind(month, totalCost, openAITokenCount, now)
     .run()
 
-  console.log('[logAction] Action and global statistics recorded. Cost:', totalCost)
+  console.log('[updateStatistics] Global statistics updated. Cost:', totalCost)
 }

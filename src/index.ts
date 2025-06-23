@@ -1,4 +1,4 @@
-import { logAction,updateStatistics } from './logAction'
+import { logAction, updateStatistics } from './logAction'
 import { Hono } from 'hono'
 import type { Env } from './types'
 import { detectIntent } from './detectIntent'
