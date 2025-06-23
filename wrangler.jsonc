@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chat-secretary",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-23",
+  "d1_databases": [
+    {
+      "binding": "CHAT_SECRETARY_DB",
+      "database_name": "chat_secretary",
+      "database_id": "1fb1e792-dfbc-4c56-b074-5643ed098fa0"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
