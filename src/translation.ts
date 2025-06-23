@@ -24,6 +24,9 @@ export async function translateToEnglish(text: string, env: Env): Promise<string
  * @returns 翻譯後的繁體中文文字
  */
 export async function translateToUserLang(question: string, text: string, env: Env): Promise<string> {
+    if (!env || !env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is missing in env')
+  }
   return await translateByOpenAIChinese(question, text, env)
 }
 
@@ -67,10 +70,10 @@ async function translateByOpenAIChinese(question: string, text: string, env: Env
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: '你是一個資料整理大師，將透過 AI RAG 取得的資料，再依照原本問題整理出最適合原本問題的答案，並且翻譯成中文。' },
-        { role: 'user', content: `請整理資訊：「${text}」，原本問題：「${question}」。請以中文回覆。` },
+        { role: 'system', content: '你是一個翻譯助手兼任資料整理大師，你將資訊依照原本問題，整理出最適合原本問題的答案，並且翻譯成中文。' },
+        { role: 'user', content: `請整理資訊：「${text}」，原本問題是：「${question}」。` },
       ],
-      temperature: 0.5,
+      temperature: 0.3,
       max_tokens: 2048,
     }),
   })

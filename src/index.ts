@@ -1,4 +1,4 @@
-import { logAction } from './logAction'
+import { logAction,updateStatistics } from './logAction'
 import { Hono } from 'hono'
 import type { Env } from './types'
 import { detectIntent } from './detectIntent'
@@ -44,6 +44,7 @@ app.post('/telegram-bot', async (c) => {
     }
   }
 
+  // ------------
   // 檢查指令
   if (text.startsWith('/help')) {
     console.log('[6] 收到 /help 指令')
@@ -64,75 +65,89 @@ app.post('/telegram-bot', async (c) => {
 
   // 1. 判斷意圖
   let intent = 'unknown'
+  let detectIntentTokenCount = 0
   try {
     intent = await detectIntent(text, c.env)
     console.log('[7] 判斷意圖:', intent)
+    // 假設 detectIntent 回傳中帶有 token 數，請自行取得，否則可估算字數
+    detectIntentTokenCount = Math.ceil(text.length / 4) // 簡單估計
   } catch (e) {
     console.log('[8] 判斷意圖失敗:', e)
+  } finally {
+    await updateStatistics(c.env, detectIntentTokenCount, questionTime)
   }
 
   if (intent !== 'lottery') {
-    console.log('[9] 非樂透意圖:', intent)
     await replyTelegram(c.env.TELEGRAM_BOT_TOKEN, chatId, '我聽不懂你的意思。我只負責樂透彩相關查詢功能')
     return c.json({ ok: true })
   }
 
-  // 2. 翻譯成英文
+  // 翻譯成英文
   let translatedQuestion = ''
+  let translateToEnglishTokenCount = 0
   try {
     translatedQuestion = await translateToEnglish(text, c.env)
     console.log('[10] 翻譯成英文:', translatedQuestion)
+    translateToEnglishTokenCount = Math.ceil(translatedQuestion.length / 4)
   } catch (e) {
     console.log('[11] 翻譯失敗:', e)
     await replyTelegram(c.env.TELEGRAM_BOT_TOKEN, chatId, '翻譯失敗，請稍後再試。')
     return c.json({ ok: true })
+  } finally {
+    await updateStatistics(c.env, translateToEnglishTokenCount, questionTime)
   }
 
-  // 3. 呼叫 AutoRAG 查詢
-  let ragAnswer = await queryAutoRAG(translatedQuestion, c.env)
-  console.log('[12] AutoRAG 查詢結果:', ragAnswer)
+  // 呼叫 AutoRAG 查詢
+  let ragAnswer = null
+  let ragTokenCount = 0
+  try {
+    ragAnswer = await queryAutoRAG(translatedQuestion, c.env)
+    console.log('[12] AutoRAG 查詢結果:', ragAnswer)
+    ragTokenCount = ragAnswer ? Math.ceil(ragAnswer.length / 4) : 0
+  } catch (e) {
+    console.log('[12] AutoRAG 查詢錯誤:', e)
+  } finally {
+    await updateStatistics(c.env, ragTokenCount, questionTime)
+  }
 
-  // 4. 如果沒資料，回覆查無資料
   if (!ragAnswer) {
-    console.log('[13] 查無資料')
     await replyTelegram(c.env.TELEGRAM_BOT_TOKEN, chatId, '目前查詢不到資料')
-    ragAnswer = null
     return c.json({ ok: true })
   }
 
-  // 5. 翻譯回使用者語言
+  // 翻譯回使用者語言
   let translatedAnswer = ''
-  if (ragAnswer) {
-    try {
-      translatedAnswer = await translateToUserLang(ragAnswer, c.env)
-      console.log('[14] 翻譯回使用者語言:', translatedAnswer)
-    } catch (e) {
-      console.log('[15] 翻譯回使用者語言失敗:', e)
-      translatedAnswer = ragAnswer
-    }
-  } else {
-    translatedAnswer = '目前查詢不到資料'
+  let translateToUserLangTokenCount = 0
+  try {
+    translatedAnswer = await translateToUserLang(text, ragAnswer, c.env)
+    console.log('[14] 翻譯回使用者語言:', translatedAnswer)
+    translateToUserLangTokenCount = Math.ceil(translatedAnswer.length / 4)
+  } catch (e) {
+    console.log('[15] 翻譯回使用者語言失敗:', e)
+    translatedAnswer = ragAnswer + '\n\n（翻譯失敗，請聯繫管理員）'
   }
+  // 這邊不用更新統計資料，因為一定會在最後執行
 
-  // 6. 紀錄動作
+  // 紀錄動作（包含完整資訊）
   try {
     await logAction(c.env, {
       username,
       languageCode,
-      timezone: 'Asia/Taipei', // 假設時區為台北
+      timezone: 'Asia/Taipei',
       question: text,
       translatedQuestion,
       ragAnswer,
       translatedAnswer,
       questionTime,
       replyTime: new Date().toISOString(),
+      intent,
     })
     console.log('[16] 動作已紀錄')
   } catch (e) {
     console.log('[17] 動作紀錄失敗:', e)
   }
 
-  // 7. 回覆 Telegram
+  // 回覆 Telegram
   await replyTelegram(c.env.TELEGRAM_BOT_TOKEN, chatId, translatedAnswer)
   console.log('[18] 已回覆 Telegram:', translatedAnswer)
 
