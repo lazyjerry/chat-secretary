@@ -72,8 +72,10 @@ chat-secretary/
 ### 4. 初始化 D1 資料庫
 - 使用 Wrangler CLI 建立 D1 資料庫並執行初始化 SQL 腳本：
 
+```bash
 wrangler d1 create chat_secretary
 wrangler d1 execute <DATABASE_ID> --file=init.sql
+```
 
 ### 5. 設定 Worker 環境變數
 
@@ -86,7 +88,28 @@ wrangler secret put AUTO_RAG_DB_NAME  # 例如 soft-base-6cc6
 
 ⸻
 
-部署步驟
+## Cloudflare AutoRAG 資料添加步驟
+1.	進入 Cloudflare AI 平台
+登入 Cloudflare Dashboard，並前往「AI」服務頁面。
+2.	建立或選擇向量資料庫（Vector Database）
+建立新的向量資料庫（例如命名為 soft-base-6cc6），此名稱需與 Worker 綁定時的 AUTO_RAG_DB_NAME 對應。
+3.	準備樂透彩資料檔案
+將樂透彩歷史資料整理成純文字格式或 CSV 檔案（可包含開獎日期、號碼、獎項等欄位），確保資料格式乾淨且結構一致。
+4.	上傳資料並建立向量索引
+透過 Cloudflare AI 平台提供的介面或 API，將樂透彩文字資料批次上傳。平台會自動將文字資料切分成向量（embedding），並建立索引以供快速搜尋。
+5.	測試資料是否成功加入
+在 Cloudflare AI Playground 或透過您 Worker 的 AutoRAG 呼叫接口，使用測試查詢（例如「5 月份大樂透號碼」）驗證資料是否能正確回應。
+6.	定期更新與維護
+根據需求新增或更新資料，並重新建立索引確保向量庫資料完整與正確。
+
+### 補充說明
+- 向量資料庫名稱必須與 Worker 端綁定的 AUTO_RAG_DB_NAME 一致，否則無法成功呼叫。
+- AutoRAG 平台會依據文本相似度與上下文提供最佳回答，請確保上傳資料的品質與格式正確。
+- 目前 Cloudflare AutoRAG 支援多種文件格式，請參考官方文件了解詳細支援清單。
+
+⸻
+
+## 部署步驟
 1. 編輯並確認 src/index.ts 及其他程式碼，確保環境變數與綁定正確。
 2. 使用 Wrangler CLI 部署 Worker：
 ```bash
@@ -99,7 +122,7 @@ wrangler deploy
 
 ⸻
 
-開發注意事項
+## 開發注意事項
 - 全面使用 OpenAI GPT-4o-mini 進行翻譯與意圖判斷，已移除 Google 翻譯相關功能。
 - 使用 logAction 與 updateStatistics 函式分別記錄使用動作與累積 Token 使用數據。
 - 可根據需求擴充白名單管理、多語系支援等功能。
@@ -107,13 +130,13 @@ wrangler deploy
 
 ⸻
 
-授權條款
+## 授權條款
 
 本專案採用 MIT License
 
 ⸻
 
-參考資源
+## 參考資源
 
 - [Cloudflare Workers 官方文件](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1 官方文件](https://developers.cloudflare.com/d1/)
